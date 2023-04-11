@@ -1,23 +1,44 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PrimaryWindow};
 
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
-        .add_startup_system(setup)
+        .add_plugins(DefaultPlugins)          // all default plugins by bevy
+        .add_startup_system(spawn_player)
+        .add_startup_system(spawn_camera)
         .run();
 }
 
-fn setup(mut commands: Commands, asset_server:Res<AssetServer>){
-    commands.spawn(Camera2dBundle::default());
+#[derive(Component)]
+pub struct Player {}
 
-    commands.spawn(SpriteBundle {
-        sprite: Sprite {
-            color: Color::rgb(0.25, 0.25, 0.75),
-            custom_size: Some(Vec2::new(150.0, 150.0)),
-            ..Default::default()
-        },
-        ..Default::default()
-    });
+pub fn spawn_player(
+    mut commands: Commands,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+    asset_server: Res<AssetServer>,
+) {
+    let window = window_query.get_single().unwrap();
+
+    commands.spawn((
+            SpriteBundle {
+                transform: Transform::from_xyz(window.width() / 2.0, window.height() / 2.0, 0.0), // spawn in center
+                texture: asset_server.load("sprites\\ball_blue_large.png"),
+                ..default()
+            },
+            Player {},
+        ));
 }
 
+pub fn spawn_camera(
+    mut commands: Commands,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+) {
+    let window = window_query.get_single().unwrap();
+
+    commands.spawn(
+        Camera2dBundle {
+            transform: Transform::from_xyz(window.width() / 2.0 , window.height() / 2.0, 0.0),
+            ..default()
+        }
+    );
+}
