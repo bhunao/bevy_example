@@ -4,7 +4,7 @@ use rand::random;
 pub const PLAYER_SIZE: f32 = 64.0;// player sprite size
 pub const PLAYER_SPEED: f32 = 500.0;
 pub const NUMBER_OF_ENEMIES: i32 = 10;
-pub const ENEMY_SPEED: i32 = 100;
+pub const ENEMY_SPEED: f32 = 200.0;
 
 fn main() {
     App::new()
@@ -15,6 +15,7 @@ fn main() {
         .add_system(player_movement)
         .add_system(confine_player_movement)
         .add_system(enemy_movement)
+        .add_system(confine_enemy_movement)
         .run();
 }
 
@@ -146,6 +147,43 @@ pub fn confine_player_movement(
 pub fn enemy_movement(mut enemy_query: Query<(&mut Transform, &Enemy)>, time: Res<Time>) {
     for (mut transform, enemy) in enemy_query.iter_mut() {
         let direction = Vec3::new(enemy.direction.x, enemy.direction.y, 0.0);
-        transform.translation += direction;
+        // transform.translation += Vec3::new(
+        //     direction.x * ENEMY_SPEED * time.delta_seconds(),
+        //     direction.y * ENEMY_SPEED * time.delta_seconds(),
+        //     0.0);
+        transform.translation += direction * ENEMY_SPEED * time.delta_seconds();
     }
 }
+
+pub fn confine_enemy_movement(
+    mut enemies_query: Query<(&Transform, &mut Enemy)>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+) {
+    let window = window_query.get_single().unwrap();
+
+    let half_player_size = PLAYER_SIZE / 2.0; // 32.0
+    let x_min = 0.0 + half_player_size;
+    let x_max = window.width() - half_player_size;
+    let y_min= 0.0 + half_player_size;
+    let y_max = window.height() - half_player_size;
+
+    for (enemy_transform, mut enemy) in enemies_query.iter_mut() {
+        let translation = enemy_transform.translation;
+        let mut direction = enemy.direction;
+
+        if translation.x < x_min {
+            direction.x *= -1.0
+        } else if translation.x > x_max {
+            direction.x *= -1.0
+        }
+
+        if translation.y < y_min {
+            direction.y *= -1.0
+        } else if translation.y > y_max {
+            direction.y *= -1.0
+        }
+
+        enemy.direction = direction;
+    }
+}
+
