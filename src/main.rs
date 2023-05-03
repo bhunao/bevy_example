@@ -5,13 +5,18 @@ pub const PLAYER_SIZE: f32 = 64.0;// player sprite size
 pub const PLAYER_SPEED: f32 = 500.0;
 pub const NUMBER_OF_ENEMIES: i32 = 3;
 pub const ENEMY_SPEED: f32 = 200.0;
-pub const START_COUNT: i32 = 10;
+pub const START_COUNT: usize = 10;
 pub const STAR_SIZE: f32 = 10.0;
+pub const STAR_SPAWN_TIME: f32 = 1.0;
+
 
 fn main() {
     App::new()
         // plugins
         .add_plugins(DefaultPlugins)          // all default plugins by bevy
+        // resources
+        .init_resource::<Score>()
+        .init_resource::<StarSpawnTimer>()
         // startup systems
         .add_startup_system(spawn_player)           // spawn player once at start
         .add_startup_system(spawn_camera)           // spawn camera once at start
@@ -25,6 +30,9 @@ fn main() {
         .add_system(confine_enemy_movement)
         .add_system(enemy_hit_player)
         .add_system(player_hit_star)
+        .add_system(udpate_score)
+        .add_system(respawn_stars)
+        .add_system(update_star_tick)
         .run();
 }
 
@@ -37,6 +45,30 @@ pub struct Player {}
 #[derive(Component)]
 pub struct Enemy {
     pub direction: Vec2,
+}
+
+#[derive(Resource)]
+pub struct StarSpawnTimer {
+    pub timer: Timer,
+}
+
+#[derive(Resource)]
+pub struct Score {
+    pub value: u32
+}
+
+impl Default for Score {
+    fn default() -> Score {
+        Score { value: 0}
+    }
+}
+
+impl Default for StarSpawnTimer {
+    fn default() -> StarSpawnTimer {
+        StarSpawnTimer {
+             timer: Timer::from_seconds(STAR_SPAWN_TIME, TimerMode::Repeating),
+            }
+    }
 }
 
 pub fn spawn_player(
@@ -281,7 +313,8 @@ pub fn player_hit_star(
      player_query: Query<&Transform, With<Player>>,
      star_query: Query<(Entity, &Transform), With<Star>>,
      asset_server: Res<AssetServer>,
-     audio: Res<Audio>) {
+     audio: Res<Audio>,
+    mut score: ResMut<Score>,) {
         if let Ok(player_transform) = player_query.get_single() {
             for (star_entity, start_transform) in star_query.iter() {
                 let distance = player_transform
@@ -291,6 +324,7 @@ pub fn player_hit_star(
 
             if distance < player_radius + star_radius {
                 println!("star!");
+                score.value += 1;
                 let sound_effect = asset_server.load("audio/impactMining_004.ogg");
                 audio.play(sound_effect);
                 commands.entity(star_entity).despawn();
@@ -298,3 +332,39 @@ pub fn player_hit_star(
         }
 }
      }
+
+
+pub fn udpate_score (score: Res<Score>) {
+    if score.is_changed() {
+        println!("score: {}", score.value.to_string());
+    }
+}
+
+pub fn update_star_tick(mut star_spawn_timer: ResMut<StarSpawnTimer>, time: Res<Time>) {
+    star_spawn_timer.timer.tick(time.delta());
+}
+
+pub fn respawn_stars(
+        mut commands: Commands,
+        window_query: Query<&Window, With<PrimaryWindow>>,
+        star_query: Query<(Entity, &Transform), With<Star>>,
+        asset_server: Res<AssetServer>,
+        star_spawn_timer: ResMut<StarSpawnTimer>,
+    ) {
+
+
+    let window = window_query.get_single().unwrap();
+    if star_spawn_timer.timer.finished() && star_query.iter().count() < START_COUNT {
+        let random_x = random::<f32>() * window.width();
+        let random_y = random::<f32>() * window.height();
+
+        commands.spawn((
+                SpriteBundle {
+                    transform: Transform::from_xyz(random_x, random_y, 0.0),
+                    texture: asset_server.load("sprites/star.png"),
+                    ..default()
+                },
+                Star {},
+            ));
+    }
+}
