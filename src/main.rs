@@ -3,23 +3,33 @@ use rand::random;
 
 pub const PLAYER_SIZE: f32 = 64.0;// player sprite size
 pub const PLAYER_SPEED: f32 = 500.0;
-pub const NUMBER_OF_ENEMIES: i32 = 10;
+pub const NUMBER_OF_ENEMIES: i32 = 3;
 pub const ENEMY_SPEED: f32 = 200.0;
+pub const START_COUNT: i32 = 10;
+pub const STAR_SIZE: f32 = 10.0;
 
 fn main() {
     App::new()
+        // plugins
         .add_plugins(DefaultPlugins)          // all default plugins by bevy
+        // startup systems
         .add_startup_system(spawn_player)           // spawn player once at start
         .add_startup_system(spawn_camera)           // spawn camera once at start
         .add_startup_system(spawn_enemies)           // spawn enemies once at start
+        .add_startup_system(spawn_stars)           // spawn enemies once at start
+        // systems
         .add_system(player_movement)
         .add_system(confine_player_movement)
         .add_system(enemy_movement)
         .add_system(update_enemy_direction)
         .add_system(confine_enemy_movement)
         .add_system(enemy_hit_player)
+        .add_system(player_hit_star)
         .run();
 }
+
+#[derive(Component)]
+pub struct Star {}
 
 #[derive(Component)]
 pub struct Player {}
@@ -60,6 +70,23 @@ pub fn spawn_camera(
     );
 }
 
+
+pub fn spawn_stars ( mut commands: Commands, window_query: Query<&Window, With<PrimaryWindow>>, asset_server: Res<AssetServer>,) {
+    let window = window_query.get_single().unwrap();
+    for _ in 0..START_COUNT {
+        let random_x = random::<f32>() * window.width();
+        let random_y = random::<f32>() * window.height();
+
+        commands.spawn((
+                SpriteBundle {
+                    transform: Transform::from_xyz(random_x, random_y, 0.0),
+                    texture: asset_server.load("sprites/star.png"),
+                    ..default()
+                },
+                Star {},
+            ));
+    }
+}
 
 pub fn spawn_enemies (
     mut commands: Commands,
@@ -248,3 +275,26 @@ pub fn enemy_hit_player(
         }
     }
 }
+
+pub fn player_hit_star(
+    mut commands: Commands,
+     player_query: Query<&Transform, With<Player>>,
+     star_query: Query<(Entity, &Transform), With<Star>>,
+     asset_server: Res<AssetServer>,
+     audio: Res<Audio>) {
+        if let Ok(player_transform) = player_query.get_single() {
+            for (star_entity, start_transform) in star_query.iter() {
+                let distance = player_transform
+                .translation.distance(start_transform.translation);
+            let player_radius = PLAYER_SIZE / 2.0;
+            let star_radius = STAR_SIZE / 2.0;
+
+            if distance < player_radius + star_radius {
+                println!("star!");
+                let sound_effect = asset_server.load("audio/impactMining_004.ogg");
+                audio.play(sound_effect);
+                commands.entity(star_entity).despawn();
+            }
+        }
+}
+     }
